@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
+venv/
+ENV/
+.env
+
+# Docker
+.docker/
+
+# Airflow
+airflow/logs/
+airflow/*.pid
+airflow/*.err
+airflow/*.log
+airflow/airflow-webserver.pid
+airflow/webserver_config.py
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Project specific
+data/
+logs/
+.env
+*.db
+secrets/
+
+# API keys and credentials
+config/*.key
+*credentials*.json
+
+# Temporary files
+tmp/
+temp/
+
+# Large CSV files and datasets
+*.csv
+*.parquet
+*.xlsx
+!requirements.txt
+
+# Generated documentation
+docs/_build/
+site/
+
+# Logs
+*.log
+log/
