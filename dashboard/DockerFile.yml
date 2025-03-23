@@ -1,0 +1,43 @@
+# =============================================================================
+# Financial Data ETL Pipeline - Dashboard Service Dockerfile
+# =============================================================================
+# This Dockerfile builds the Streamlit dashboard service that provides
+# interactive visualizations for financial data accessed through the API.
+# =============================================================================
+
+# Use specific Python version (not 'latest') for stability and reproducibility
+# Using the same base image as the API service for consistency
+FROM python:3.10-slim
+
+# Set working directory for all subsequent commands
+WORKDIR /app
+
+# Copy requirements first to leverage Docker's build cache
+# This layer will only rebuild when requirements.txt changes
+COPY requirements.txt .
+
+# Install dependencies
+# --no-cache-dir reduces the image size by not storing the pip cache
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application code
+# This is done after installing requirements to optimize rebuild times
+# when only application code changes
+COPY . .
+
+# Set environment variables
+# PYTHONDONTWRITEBYTECODE prevents Python from writing .pyc files
+# PYTHONUNBUFFERED ensures Python output is sent straight to terminal
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Command to run the Streamlit server
+# --server.port=8501: Default Streamlit port
+# --server.address=0.0.0.0: Listen on all network interfaces
+# --server.enableCORS=false: Disable CORS for development
+CMD ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
+# Metadata about the image
+LABEL maintainer="Financial ETL Pipeline Team" \
+      version="0.1.0" \
+      description="Streamlit dashboard for financial data visualization"

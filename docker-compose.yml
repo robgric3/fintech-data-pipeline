@@ -1,0 +1,135 @@
+# =============================================================================
+# Financial Data ETL Pipeline - Docker Compose Configuration
+# =============================================================================
+# This file defines the multi-container environment for the Financial ETL Pipeline
+# including database, API, dashboard, and workflow orchestration services.
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # TimescaleDB: Time-Series Database (PostgreSQL extension)
+  # =============================================================================
+  # Stores financial time-series data and provides optimized time-series queries
+  timescaledb:
+    image: timescale/timescaledb:latest-pg14
+    container_name: fintech_timescaledb
+    environment:
+      - POSTGRES_USER=fintech           # Database username
+      - POSTGRES_PASSWORD=fintech_password  # Database password (use .env file in production)
+      - POSTGRES_DB=fintech_data        # Main database name
+    ports:
+      - "5432:5432"  # Map container port to host port
+    volumes:
+      # Persistent volume for database data
+      - timescale_data:/var/lib/postgresql/data
+      # Mount initialization scripts to be run on first startup
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    restart: unless-stopped  # Automatically restart container on failure
+
+  # =============================================================================
+  # API Service: FastAPI REST Interface
+  # =============================================================================
+  # Provides HTTP endpoints for accessing financial data
+  api:
+    build:
+      context: ./api  # Directory containing API code and Dockerfile
+      dockerfile: Dockerfile
+    container_name: fintech_api
+    depends_on:
+      - timescaledb  # Ensures database is started first
+    ports:
+      - "8000:8000"  # Map container port to host port
+    volumes:
+      # Mount local directory for live code changes during development
+      - ./api:/app
+    environment:
+      # Database connection string using Docker's internal DNS
+      - DATABASE_URL=postgresql://fintech:fintech_password@timescaledb:5432/fintech_data
+    restart: unless-stopped  # Automatically restart container on failure
+
+  # =============================================================================
+  # Dashboard Service: Streamlit Visualization Interface
+  # =============================================================================
+  # Provides interactive web dashboard for data visualization
+  dashboard:
+    build:
+      context: ./dashboard  # Directory containing Dashboard code and Dockerfile
+      dockerfile: Dockerfile
+    container_name: fintech_dashboard
+    depends_on:
+      - api  # Ensures API is started first
+    ports:
+      - "8501:8501"  # Map container port to host port
+    volumes:
+      # Mount local directory for live code changes during development
+      - ./dashboard:/app
+    environment:
+      # API URL using Docker's internal DNS
+      - API_URL=http://api:8000
+    restart: unless-stopped  # Automatically restart container on failure
+
+  # =============================================================================
+  # Airflow Webserver: Workflow UI and Management
+  # =============================================================================
+  # Provides web interface for managing and monitoring ETL workflows
+  airflow-webserver:
+    build:
+      context: ./airflow  # Directory containing Airflow extensions and Dockerfile
+      dockerfile: Dockerfile
+    container_name: fintech_airflow_webserver
+    depends_on:
+      - timescaledb  # Ensures database is started first
+    ports:
+      - "8080:8080"  # Map container port to host port
+    volumes:
+      # Mount DAG definitions from local directory
+      - ./dags:/opt/airflow/dags
+      # Mount logs directory for persistence
+      - ./airflow/logs:/opt/airflow/logs
+      # Mount plugins directory for custom operators/hooks
+      - ./airflow/plugins:/opt/airflow/plugins
+    environment:
+      # Executor type (LocalExecutor runs tasks in the scheduler process)
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      # Database connection for Airflow metadata
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://fintech:fintech_password@timescaledb:5432/airflow
+      # Encryption key for sensitive variables (generate your own in production)
+      - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+    command: webserver  # Run as webserver
+    restart: unless-stopped  # Automatically restart container on failure
+
+  # =============================================================================
+  # Airflow Scheduler: Task Scheduling and Execution
+  # =============================================================================
+  # Monitors and triggers workflow tasks according to schedule
+  airflow-scheduler:
+    build:
+      context: ./airflow  # Directory containing Airflow extensions and Dockerfile
+      dockerfile: Dockerfile
+    container_name: fintech_airflow_scheduler
+    depends_on:
+      - airflow-webserver  # Ensures webserver is started first
+    volumes:
+      # Mount same volumes as webserver for consistency
+      - ./dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+    environment:
+      # Same environment variables as webserver for consistency
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://fintech:fintech_password@timescaledb:5432/airflow
+      - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+    command: scheduler  # Run as scheduler
+    restart: unless-stopped  # Automatically restart container on failure
+
+# =============================================================================
+# Volumes Configuration
+# =============================================================================
+volumes:
+  # Persistent volume for database data
+  # This ensures data persists between container restarts
+  timescale_data:
+    # Using default volume driver (local)
+    # For production, consider using a named volume with backup strategy
